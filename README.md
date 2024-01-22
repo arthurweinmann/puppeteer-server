@@ -33,12 +33,12 @@ curl -X POST http://127.0.0.1:8085/puppeteer_pseudo_rpc \
 EOF
 ```
 
-```json
-// Response Example
+Response Example:
+```
 {
     success: true,
     variables: {
-        "varname": any
-    }
+        "varname": "variable value",
+    },
 }
 ```
