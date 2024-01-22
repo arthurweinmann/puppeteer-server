@@ -4,14 +4,14 @@ Make Puppeteer accessible through a simple HTTP server. This allows you to use h
 
 # Warning 
 
-This is probably not safe if you expose this server on the internet, directly to users. It is intended to be behind a trusted proxy.
+This server is probably not safe to expose directly to users on the web. It should be behind a trusted web server implemented in another programming language, and only accessible from the machine it is running on or from a VPN.
 
 # How to use
 
 Build the binary yourself by following [.github/workflows/release.yml](.github/workflows/release.yml) locally or by forking this repository.
 You can also download the binary file already compiled in the release section of this repository.
 
-Run it, give it the address and port it will listen, and also the maximum number of headless chrome to start:
+Run it, give it the address and port it will listen to, and also the maximum number of headless chrome to start:
 `./puppeteerserver --listenon 127.0.0.1 --port 8085 --maxbrowsers 3`
 
 Finally, access your new and shiny constantly ready pool of puppeteers:
@@ -32,3 +32,13 @@ curl -X POST http://127.0.0.1:8085/puppeteer_pseudo_rpc \
 }
 EOF
 ```
+
+```json
+// Response Example
+{
+    success: true,
+    variables: {
+        "varname": any
+    }
+}
+``
