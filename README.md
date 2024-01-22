@@ -1,4 +1,4 @@
-# Puppeteer HTTP server
+# Puppeteer Pseudo-RPC HTTP server
 
 Make Puppeteer accessible through a simple HTTP server. This allows you to use headless chrome and also puppeteer from other programming languages without suffering from the cold start cost each time.
 
