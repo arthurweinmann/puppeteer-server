@@ -38,8 +38,15 @@ async function initialize() {
             }
 
             if (waitingqueue.length > 0) {
-                let fifoWaiter = waitingqueue.shift();
-                fifoWaiter(i);
+                let fifoWaiter = undefined;
+                while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
+                    fifoWaiter = waitingqueue.shift().resolve;
+                }
+                if (fifoWaiter !== undefined) {
+                    fifoWaiter(i);
+                } else {
+                    browserInstancesInUse[i] = false;
+                }
             } else {
                 browserInstancesInUse[i] = false;
             }
@@ -94,10 +101,18 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 }
             }
             if (instance === null) {
-                let wg = new Promise((resolve, _) => { waitingqueue.push(resolve) });
+                // we use a reference so we can mark the promise as stale if we time out
+                // it will get gc by the next queue shift
+                let wgref = {resolve: undefined};
+                let wg = new Promise((resolve, _) => { 
+                    wgref.resolve = resolve; 
+                    waitingqueue.push(wgref);
+                });
                 let timeout = new Promise(resolve => setTimeout(() => { resolve(null); }, 60000));
                 instanceIndex = await Promise.race([wg, timeout]);
                 if (instanceIndex === null) {
+                    wgref.resolve();
+                    wgref.resolve = undefined;
                     return new Response("408: we timed out waiting for a browser instance to become available", {
                         status: 408,
                     });
@@ -182,8 +197,15 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
             }
 
             if (waitingqueue.length > 0) {
-                let fifoWaiter = waitingqueue.shift();
-                fifoWaiter(instanceIndex);
+                let fifoWaiter = undefined;
+                while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
+                    fifoWaiter = waitingqueue.shift().resolve;
+                }
+                if (fifoWaiter !== undefined) {
+                    fifoWaiter(instanceIndex);
+                } else {
+                    browserInstancesInUse[instanceIndex] = false;
+                }
             } else {
                 browserInstancesInUse[instanceIndex] = false;
             }
