@@ -1,0 +1,39 @@
+name: Puppeteer server build and Release
+
+on:  
+  push:
+    branch:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.39.x
+
+      - name: Deno compile CLI
+        run: |
+          deno compile --unstable --allow-read --allow-write --allow-net --allow-env --output=puppeteerserver server.js
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y_%m_%d_%H_%M_%S')" >> $GITHUB_OUTPUT
+
+      - name: Create or Update release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest-release --yes || true
+          gh release create latest-release puppeteerserver \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/} latest release" \
+              --notes "Generated on ${{ steps.date.outputs.date }}"
