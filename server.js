@@ -103,9 +103,9 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
             if (instance === null) {
                 // we use a reference so we can mark the promise as stale if we time out
                 // it will get gc by the next queue shift
-                let wgref = {resolve: undefined};
-                let wg = new Promise((resolve, _) => { 
-                    wgref.resolve = resolve; 
+                let wgref = { resolve: undefined };
+                let wg = new Promise((resolve, _) => {
+                    wgref.resolve = resolve;
                     waitingqueue.push(wgref);
                 });
                 let timeout = new Promise(resolve => setTimeout(() => { resolve(null); }, 60000));
@@ -128,7 +128,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                             targetvarname: string,
                             methodreceiver: varname or startingpage or browser
                             methodname: string,
-                            parameters: [#varname, "rawval"],
+                            parameters: [#varname, "rawval", "function(el) {return el.textContent;}"],
                         }
                     ]
                 }
@@ -173,13 +173,22 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     });
                 }
                 for (let p = 0; p < body.parameters.length; p++) {
-                    if (body.parameters[p].startsWith("#")) {
-                        let vname = body.parameters[p].slice(1);
-                        body.parameters[p] = variables[vname];
-                        if (body.parameters[p] === undefined) {
-                            return new Response("400: we did not find variable in parameters: " + vname, {
-                                status: 400,
-                            });
+                    if (typeof body.parameters[p] === "string") {
+                        if (body.parameters[p].startsWith("#")) {
+                            let vname = body.parameters[p].slice(1);
+                            body.parameters[p] = variables[vname];
+                            if (body.parameters[p] === undefined) {
+                                return new Response("400: we did not find variable in parameters: " + vname, {
+                                    status: 400,
+                                });
+                            }
+                        } else if (body.parameters[p].startsWith("function(")) {
+                            body.parameters[p] = body.parameters[p].slice(9);
+                            let argend = body.parameters[p].indexOf(")");
+                            let args = body.parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
+                            body.parameters[p] = body.parameters[p].slice(argend + 1).trim();
+                            args.push(body.parameters[p].slice(1, body.parameters[p].length - 2).trim()); // remove { }
+                            body.parameters[p] = new Function(...args);
                         }
                     }
                 }
