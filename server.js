@@ -23,12 +23,20 @@ var closed = false;
 
 initialize();
 
+console.log(browserInstancesInUse);
+
 function releaseBrowser(instanceIndex) {
+    console.log("releaseBrowser", instanceIndex);
+    console.log("waitingqueue.length", waitingqueue.length);
+
     if (waitingqueue.length > 0) {
         let fifoWaiter = undefined;
         while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
             fifoWaiter = waitingqueue.shift().resolve;
         }
+
+        console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
+
         if (fifoWaiter !== undefined) {
             fifoWaiter(instanceIndex);
         } else {
@@ -112,6 +120,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     break;
                 }
             }
+            console.log("instanceIndex", instanceIndex);
             if (instance === null) {
                 // we use a reference so we can mark the promise as stale if we time out
                 // it will get gc by the next queue shift
@@ -122,6 +131,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 });
                 let timeout = new Promise(resolve => setTimeout(() => { resolve(null); }, 60000));
                 instanceIndex = await Promise.race([wg, timeout]);
+                console.log("instanceIndex promise", instanceIndex, wgref.resolve === undefined);
                 if (instanceIndex === null) {
                     wgref.resolve();
                     wgref.resolve = undefined;
@@ -234,6 +244,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
             };
 
             let resp = await runcommand();
+            console.log("resp", resp);
             releaseBrowser(instanceIndex);
             return resp;
     }
