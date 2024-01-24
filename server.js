@@ -15,9 +15,9 @@ if (nmaxbrowsers < 1) {
     throw new Error("we need maxbrowsers to be at least 1");
 }
 
-var browserInstances = new Array(maxbrowsers).fill(null);
-var browserFirstPages = new Array(maxbrowsers).fill(null);
-var browserInstancesInUse = new Array(maxbrowsers).fill(true);
+var browserInstances = new Array(nmaxbrowsers).fill(null);
+var browserFirstPages = new Array(nmaxbrowsers).fill(null);
+var browserInstancesInUse = new Array(nmaxbrowsers).fill(true);
 var waitingqueue = [];
 var closed = false;
 
