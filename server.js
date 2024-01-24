@@ -45,7 +45,7 @@ function releaseBrowser(instanceIndex) {
             fifoWaiter = waitingqueue.shift().resolve;
         }
 
-        if(verbose) {
+        if (verbose) {
             console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
         }
 
@@ -137,7 +137,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 }
             }
 
-            if(verbose) {
+            if (verbose) {
                 console.log("instanceIndex", instanceIndex);
             }
 
@@ -152,10 +152,10 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 let timeout = new Promise(resolve => setTimeout(() => { resolve(null); }, 60000));
                 instanceIndex = await Promise.race([wg, timeout]);
 
-                if(verbose) {
+                if (verbose) {
                     console.log("instanceIndex promise", instanceIndex, wgref.resolve === undefined);
                 }
-                
+
                 if (instanceIndex === null) {
                     wgref.resolve();
                     wgref.resolve = undefined;
@@ -189,7 +189,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 }
                 let variables = {};
                 for (let i = 0; i < body.calls.length; i++) {
-                    if(verbose) {
+                    if (verbose) {
                         console.log("call", body.calls[i]);
                     }
 
@@ -219,13 +219,13 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                             receiver = instance;
                             break;
                     }
-                    
+
                     for (let p = 0; p < body.calls[i].parameters.length; p++) {
                         if (typeof body.calls[i].parameters[p] === "string") {
                             if (body.calls[i].parameters[p].startsWith("#")) {
                                 let vname = body.calls[i].parameters[p].slice(1);
 
-                                if(verbose) {
+                                if (verbose) {
                                     console.log("converting parameter", body.calls[i].parameters[p], "to", vname);
                                 }
 
@@ -243,7 +243,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                                 body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
                                 args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
 
-                                if(verbose) {
+                                if (verbose) {
                                     console.log("creating new Function with arguments", args);
                                 }
 
@@ -257,21 +257,30 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                         console.log(body.calls[i].methodname);
                     }
 
-                    let mth = receiver[body.calls[i].methodname];
-                    if (mth === undefined || typeof mth !== 'function') {
-                        return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
-                            status: 400,
-                        });
-                    }
+                    let wrappedReceiver = new Proxy(receiver, {
+                        get(target, propKey, receiverObj) {
+                            if (typeof target[propKey] === 'function') {
+                                return (...args) => target[propKey](...args);
+                            }
+                            return target[propKey];
+                        }
+                    });
+
+                    // let mth = receiver[body.calls[i].methodname];
+                    // if (mth === undefined || typeof mth !== 'function') {
+                    //     return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
+                    //         status: 400,
+                    //     });
+                    // }
 
                     if (verbose) {
-                        console.log(mth);
+                        console.log(wrappedReceiver);
                         console.log(...body.calls[i].parameters);
                     }
 
                     let val;
                     try {
-                        val = await mth(...body.calls[i].parameters);
+                        val = await wrappedReceiver[body.calls[i].methodname](...body.calls[i].parameters);
                     } catch (e) {
                         return new Response("501: we encountered the following error: " + e + " for method " + body.calls[i].methodname + " on receiver " + body.calls[i].methodreceiver, {
                             status: 501,
@@ -297,7 +306,7 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
 
             let resp = await runcommand();
 
-            if(verbose) {
+            if (verbose) {
                 console.log("returning response");
             }
 
