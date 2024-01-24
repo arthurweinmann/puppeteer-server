@@ -67,10 +67,8 @@ async function terminate(exitcode) {
     }
     Deno.exit(exitcode);
 }
-
-for await (const _ of Deno.signal(Deno.Signal.SIGINT)) {
-    await terminate(0);
-}
+  
+Deno.addSignalListener("SIGINT", ()=>terminate(0));
 
 Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
     const pathname = new URL(_req.url).pathname;
