@@ -252,11 +252,21 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                         }
                     }
 
+                    if (verbose) {
+                        console.log(JSON.stringify(receiver));
+                        console.log(body.calls[i].methodname);
+                    }
+
                     let mth = receiver[body.calls[i].methodname];
                     if (mth === undefined || typeof mth !== 'function') {
                         return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
                             status: 400,
                         });
+                    }
+
+                    if (verbose) {
+                        console.log(mth);
+                        console.log(...body.calls[i].parameters);
                     }
 
                     let val;
