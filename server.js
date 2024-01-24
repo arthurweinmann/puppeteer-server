@@ -69,10 +69,14 @@ async function initialize() {
 
 async function terminate(exitcode) {
     closed = true;
-    console.log("Received SIGINT signal, closing Puppeteer browsers...");
+    console.log("Closing Puppeteer browsers...");
     for (let i = 0; i < browserInstances.length; i++) {
         if (browserInstances[i] !== null) {
-            await browserInstances[i].close();
+            try {
+                await browserInstances[i].close();
+            } catch(e) {
+                console.log("we could not close browser instance " + i + ": " + e);
+            }
         }
     }
     Deno.exit(exitcode);
