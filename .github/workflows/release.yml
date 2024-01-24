@@ -22,7 +22,7 @@ jobs:
 
       - name: Deno compile CLI
         run: |
-          deno compile --unstable --allow-read --allow-write --allow-net --allow-env --output=puppeteerserver server.js
+          deno compile --unstable --allow-read --allow-run --allow-write --allow-net --allow-env --output=puppeteerserver server.js
 
       - name: Get current date
         id: date
