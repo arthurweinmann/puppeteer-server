@@ -1,8 +1,14 @@
 import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
 import { parse } from "https://deno.land/std@0.83.0/flags/mod.ts";
 
-const command_line_args = parse(Deno.args);
-const { listenon, port, maxbrowsers } = command_line_args;
+const command_line_args = parse(Deno.args, {
+    boolean: ["verbose"],
+    string: ["listenon", "port", "maxbrowsers", "launchargs"],
+    alias: { "verbose": "v" },
+    default: { "verbose": false },
+});
+
+const { listenon, port, maxbrowsers, verbose } = command_line_args;
 const nport = parseInt(port);
 if (typeof nport !== 'number') {
     throw new Error("we need port to represent a valid number");
@@ -23,11 +29,15 @@ var closed = false;
 
 initialize();
 
-console.log(browserInstancesInUse);
+if (verbose) {
+    console.log("browserInstancesInUse", browserInstancesInUse);
+}
 
 function releaseBrowser(instanceIndex) {
-    console.log("releaseBrowser", instanceIndex);
-    console.log("waitingqueue.length", waitingqueue.length);
+    if (verbose) {
+        console.log("releaseBrowser", instanceIndex);
+        console.log("waitingqueue.length", waitingqueue.length);
+    }
 
     if (waitingqueue.length > 0) {
         let fifoWaiter = undefined;
@@ -35,7 +45,9 @@ function releaseBrowser(instanceIndex) {
             fifoWaiter = waitingqueue.shift().resolve;
         }
 
-        console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
+        if(verbose) {
+            console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
+        }
 
         if (fifoWaiter !== undefined) {
             fifoWaiter(instanceIndex);
@@ -77,13 +89,17 @@ async function initialize() {
 
 async function terminate(exitcode) {
     closed = true;
-    console.log("Closing Puppeteer browsers...");
+    if (verbose) {
+        console.log("Closing Puppeteer browsers...");
+    }
     for (let i = 0; i < browserInstances.length; i++) {
         if (browserInstances[i] !== null) {
             try {
                 await browserInstances[i].close();
-            } catch(e) {
-                console.log("we could not close browser instance " + i + ": " + e);
+            } catch (e) {
+                if (verbose) {
+                    console.log("we could not close browser instance " + i + ": " + e);
+                }
             }
         }
     }
@@ -120,7 +136,11 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     break;
                 }
             }
-            console.log("instanceIndex", instanceIndex);
+
+            if(verbose) {
+                console.log("instanceIndex", instanceIndex);
+            }
+
             if (instance === null) {
                 // we use a reference so we can mark the promise as stale if we time out
                 // it will get gc by the next queue shift
@@ -131,7 +151,11 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 });
                 let timeout = new Promise(resolve => setTimeout(() => { resolve(null); }, 60000));
                 instanceIndex = await Promise.race([wg, timeout]);
-                console.log("instanceIndex promise", instanceIndex, wgref.resolve === undefined);
+
+                if(verbose) {
+                    console.log("instanceIndex promise", instanceIndex, wgref.resolve === undefined);
+                }
+                
                 if (instanceIndex === null) {
                     wgref.resolve();
                     wgref.resolve = undefined;
@@ -165,6 +189,10 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 }
                 let variables = {};
                 for (let i = 0; i < body.calls.length; i++) {
+                    if(verbose) {
+                        console.log("call", body.calls[i]);
+                    }
+
                     if (!Array.isArray(body.calls[i].parameters)) {
                         return new Response("400: we need every call to contain the array property parameters, even if it is empty", {
                             status: 400,
@@ -191,17 +219,18 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                             receiver = instance;
                             break;
                     }
-                    let mth = receiver[body.calls[i].methodname];
-                    if (mth === undefined) {
-                        return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
-                            status: 400,
-                        });
-                    }
+                    
                     for (let p = 0; p < body.calls[i].parameters.length; p++) {
                         if (typeof body.calls[i].parameters[p] === "string") {
                             if (body.calls[i].parameters[p].startsWith("#")) {
                                 let vname = body.calls[i].parameters[p].slice(1);
+
+                                if(verbose) {
+                                    console.log("converting parameter", body.calls[i].parameters[p], "to", vname);
+                                }
+
                                 body.calls[i].parameters[p] = variables[vname];
+
                                 if (body.calls[i].parameters[p] === undefined) {
                                     return new Response("400: we did not find variable in parameters: " + vname, {
                                         status: 400,
@@ -213,15 +242,28 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                                 let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
                                 body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
                                 args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
+
+                                if(verbose) {
+                                    console.log("creating new Function with arguments", args);
+                                }
+
                                 body.calls[i].parameters[p] = new Function(...args);
                             }
                         }
                     }
+
+                    let mth = receiver[body.calls[i].methodname];
+                    if (mth === undefined || typeof mth !== 'function') {
+                        return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
+                            status: 400,
+                        });
+                    }
+
                     let val;
                     try {
                         val = await mth(...body.calls[i].parameters);
                     } catch (e) {
-                        return new Response("501: we encountered the following error: " + e, {
+                        return new Response("501: we encountered the following error: " + e + " for method " + body.calls[i].methodname + " on receiver " + body.calls[i].methodreceiver, {
                             status: 501,
                         });
                     }
@@ -244,7 +286,11 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
             };
 
             let resp = await runcommand();
-            console.log("resp", resp);
+
+            if(verbose) {
+                console.log("returning response");
+            }
+
             releaseBrowser(instanceIndex);
             return resp;
     }
