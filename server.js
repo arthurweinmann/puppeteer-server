@@ -142,13 +142,13 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     status: 400,
                 });
             }
-            if (!Array.isArray(body.parameters)) {
-                return new Response("400: we need the json body to contain the array property parameters, even if it is empty", {
-                    status: 400,
-                });
-            }
             let variables = {};
             for (let i = 0; i < body.calls.length; i++) {
+                if (!Array.isArray(body.calls[i].parameters)) {
+                    return new Response("400: we need every call to contain the array property parameters, even if it is empty", {
+                        status: 400,
+                    });
+                }
                 if (typeof body.calls[i].methodname !== 'string' || body.calls[i].methodname.length === 0) {
                     return new Response("400: we need the field methodname provided for every element in the calls array", {
                         status: 400,
@@ -176,29 +176,29 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                         status: 400,
                     });
                 }
-                for (let p = 0; p < body.parameters.length; p++) {
-                    if (typeof body.parameters[p] === "string") {
-                        if (body.parameters[p].startsWith("#")) {
-                            let vname = body.parameters[p].slice(1);
-                            body.parameters[p] = variables[vname];
-                            if (body.parameters[p] === undefined) {
+                for (let p = 0; p < body.calls[i].parameters.length; p++) {
+                    if (typeof body.calls[i].parameters[p] === "string") {
+                        if (body.calls[i].parameters[p].startsWith("#")) {
+                            let vname = body.calls[i].parameters[p].slice(1);
+                            body.calls[i].parameters[p] = variables[vname];
+                            if (body.calls[i].parameters[p] === undefined) {
                                 return new Response("400: we did not find variable in parameters: " + vname, {
                                     status: 400,
                                 });
                             }
-                        } else if (body.parameters[p].startsWith("function(")) {
-                            body.parameters[p] = body.parameters[p].slice(9);
-                            let argend = body.parameters[p].indexOf(")");
-                            let args = body.parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
-                            body.parameters[p] = body.parameters[p].slice(argend + 1).trim();
-                            args.push(body.parameters[p].slice(1, body.parameters[p].length - 2).trim()); // remove { }
-                            body.parameters[p] = new Function(...args);
+                        } else if (body.calls[i].parameters[p].startsWith("function(")) {
+                            body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(9);
+                            let argend = body.calls[i].parameters[p].indexOf(")");
+                            let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
+                            body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
+                            args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
+                            body.calls[i].parameters[p] = new Function(...args);
                         }
                     }
                 }
                 let val;
                 try {
-                    val = await mth(...body.parameters);
+                    val = await mth(...body.calls[i].parameters);
                 } catch (e) {
                     return new Response("501: we encountered the following error: " + e, {
                         status: 501,
