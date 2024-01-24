@@ -1,7 +1,8 @@
 import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
 import { parse } from "https://deno.land/std@0.83.0/flags/mod.ts";
 
-const { listenon, port, maxbrowsers } = parse(Deno.args);
+const command_line_args = parse(Deno.args);
+const { listenon, port, maxbrowsers } = command_line_args;
 const nport = parseInt(port);
 if (typeof nport !== 'number') {
     throw new Error("we need port to represent a valid number");
@@ -28,7 +29,12 @@ async function initialize() {
             if (closed) {
                 return
             }
-            browserInstances[i] = await puppeteer.launch();
+            if (command_line_args.launchargs !== undefined) {
+                let tmp = JSON.parse(command_line_args.launchargs);
+                browserInstances[i] = await puppeteer.launch({ args: tmp });
+            } else {
+                browserInstances[i] = await puppeteer.launch();
+            }
             if (closed) {
                 return
             }
