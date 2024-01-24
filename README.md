@@ -42,3 +42,7 @@ Response Example:
     },
 }
 ```
+
+# Tip
+
+You may need to run `PUPPETEER_PRODUCT=chrome /root/.deno/bin/deno run -A --unstable https://deno.land/x/puppeteer@16.2.0/install.ts` in order to install the version of chrome supported by the version of Deno puppeteer
