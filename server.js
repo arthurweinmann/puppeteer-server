@@ -23,6 +23,22 @@ var closed = false;
 
 initialize();
 
+function releaseBrowser(instanceIndex) {
+    if (waitingqueue.length > 0) {
+        let fifoWaiter = undefined;
+        while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
+            fifoWaiter = waitingqueue.shift().resolve;
+        }
+        if (fifoWaiter !== undefined) {
+            fifoWaiter(instanceIndex);
+        } else {
+            browserInstancesInUse[instanceIndex] = false;
+        }
+    } else {
+        browserInstancesInUse[instanceIndex] = false;
+    }
+}
+
 async function initialize() {
     try {
         for (let i = 0; i < browserInstances.length; i++) {
@@ -43,19 +59,7 @@ async function initialize() {
                 return
             }
 
-            if (waitingqueue.length > 0) {
-                let fifoWaiter = undefined;
-                while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
-                    fifoWaiter = waitingqueue.shift().resolve;
-                }
-                if (fifoWaiter !== undefined) {
-                    fifoWaiter(i);
-                } else {
-                    browserInstancesInUse[i] = false;
-                }
-            } else {
-                browserInstancesInUse[i] = false;
-            }
+            releaseBrowser(i);
         }
     } catch (e) {
         console.error(e);
@@ -73,8 +77,8 @@ async function terminate(exitcode) {
     }
     Deno.exit(exitcode);
 }
-  
-Deno.addSignalListener("SIGINT", ()=>terminate(0));
+
+Deno.addSignalListener("SIGINT", () => terminate(0));
 
 Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
     const pathname = new URL(_req.url).pathname;
@@ -124,115 +128,109 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                 instance = browserInstances[instanceIndex];
             }
 
-            /*
-                body = {
-                    returnvariables: []string,
-                    calls: [
-                        {
-                            targetvarname: string,
-                            methodreceiver: varname or startingpage or browser
-                            methodname: string,
-                            parameters: [#varname, "rawval", "function(el) {return el.textContent;}"],
-                        }
-                    ]
-                }
-            */
-            if (!Array.isArray(body.calls)) {
-                return new Response("400: we need the json body to contain the array property calls", {
-                    status: 400,
-                });
-            }
-            let variables = {};
-            for (let i = 0; i < body.calls.length; i++) {
-                if (!Array.isArray(body.calls[i].parameters)) {
-                    return new Response("400: we need every call to contain the array property parameters, even if it is empty", {
+            // we nest the logic in a function so we can call releaseBrowser when it is done no matter where it returned
+            // and also avoid forgetting to release at some return statement
+            let runcommand = async function () {
+                /*
+                    body = {
+                        returnvariables: []string,
+                        calls: [
+                            {
+                                targetvarname: string,
+                                methodreceiver: varname or startingpage or browser
+                                methodname: string,
+                                parameters: [#varname, "rawval", "function(el) {return el.textContent;}"],
+                            }
+                        ]
+                    }
+                */
+                if (!Array.isArray(body.calls)) {
+                    return new Response("400: we need the json body to contain the array property calls", {
                         status: 400,
                     });
                 }
-                if (typeof body.calls[i].methodname !== 'string' || body.calls[i].methodname.length === 0) {
-                    return new Response("400: we need the field methodname provided for every element in the calls array", {
-                        status: 400,
-                    });
-                }
-                let receiver;
-                switch (body.calls[i].methodreceiver) {
-                    default:
-                        receiver = variables[body.calls[i].methodreceiver];
-                        if (receiver === undefined) {
-                            return new Response("400: we do not recognize method receiver: " + body.calls[i].methodreceiver, {
-                                status: 400,
-                            });
-                        }
-                    case "startingpage":
-                        receiver = browserFirstPages[instanceIndex];
-                        break;
-                    case "browser":
-                        receiver = instance;
-                        break;
-                }
-                let mth = receiver[body.calls[i].methodname];
-                if (mth === undefined) {
-                    return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
-                        status: 400,
-                    });
-                }
-                for (let p = 0; p < body.calls[i].parameters.length; p++) {
-                    if (typeof body.calls[i].parameters[p] === "string") {
-                        if (body.calls[i].parameters[p].startsWith("#")) {
-                            let vname = body.calls[i].parameters[p].slice(1);
-                            body.calls[i].parameters[p] = variables[vname];
-                            if (body.calls[i].parameters[p] === undefined) {
-                                return new Response("400: we did not find variable in parameters: " + vname, {
+                let variables = {};
+                for (let i = 0; i < body.calls.length; i++) {
+                    if (!Array.isArray(body.calls[i].parameters)) {
+                        return new Response("400: we need every call to contain the array property parameters, even if it is empty", {
+                            status: 400,
+                        });
+                    }
+                    if (typeof body.calls[i].methodname !== 'string' || body.calls[i].methodname.length === 0) {
+                        return new Response("400: we need the field methodname provided for every element in the calls array", {
+                            status: 400,
+                        });
+                    }
+                    let receiver;
+                    switch (body.calls[i].methodreceiver) {
+                        default:
+                            receiver = variables[body.calls[i].methodreceiver];
+                            if (receiver === undefined) {
+                                return new Response("400: we do not recognize method receiver: " + body.calls[i].methodreceiver, {
                                     status: 400,
                                 });
                             }
-                        } else if (body.calls[i].parameters[p].startsWith("function(")) {
-                            body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(9);
-                            let argend = body.calls[i].parameters[p].indexOf(")");
-                            let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
-                            body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
-                            args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
-                            body.calls[i].parameters[p] = new Function(...args);
+                        case "startingpage":
+                            receiver = browserFirstPages[instanceIndex];
+                            break;
+                        case "browser":
+                            receiver = instance;
+                            break;
+                    }
+                    let mth = receiver[body.calls[i].methodname];
+                    if (mth === undefined) {
+                        return new Response("400: we do not recognize method name: " + body.calls[i].methodname, {
+                            status: 400,
+                        });
+                    }
+                    for (let p = 0; p < body.calls[i].parameters.length; p++) {
+                        if (typeof body.calls[i].parameters[p] === "string") {
+                            if (body.calls[i].parameters[p].startsWith("#")) {
+                                let vname = body.calls[i].parameters[p].slice(1);
+                                body.calls[i].parameters[p] = variables[vname];
+                                if (body.calls[i].parameters[p] === undefined) {
+                                    return new Response("400: we did not find variable in parameters: " + vname, {
+                                        status: 400,
+                                    });
+                                }
+                            } else if (body.calls[i].parameters[p].startsWith("function(")) {
+                                body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(9);
+                                let argend = body.calls[i].parameters[p].indexOf(")");
+                                let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
+                                body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
+                                args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
+                                body.calls[i].parameters[p] = new Function(...args);
+                            }
                         }
                     }
+                    let val;
+                    try {
+                        val = await mth(...body.calls[i].parameters);
+                    } catch (e) {
+                        return new Response("501: we encountered the following error: " + e, {
+                            status: 501,
+                        });
+                    }
+                    if (typeof body.calls[i].targetvarname === 'string' && body.calls[i].targetvarname.length > 0) {
+                        variables[body.calls[i].targetvarname] = val;
+                    }
                 }
-                let val;
-                try {
-                    val = await mth(...body.calls[i].parameters);
-                } catch (e) {
-                    return new Response("501: we encountered the following error: " + e, {
-                        status: 501,
-                    });
-                }
-                if (typeof body.calls[i].targetvarname === 'string' && body.calls[i].targetvarname.length > 0) {
-                    variables[body.calls[i].targetvarname] = val;
-                }
-            }
 
-            if (waitingqueue.length > 0) {
-                let fifoWaiter = undefined;
-                while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
-                    fifoWaiter = waitingqueue.shift().resolve;
+                let response = { success: true };
+                if (Array.isArray(body.returnvariables) && body.returnvariables.length > 0) {
+                    response.variables = {};
+                    for (let v = 0; v < body.returnvariables.length; v++) {
+                        response.variables = variables[body.returnvariables[v]];
+                    }
                 }
-                if (fifoWaiter !== undefined) {
-                    fifoWaiter(instanceIndex);
-                } else {
-                    browserInstancesInUse[instanceIndex] = false;
-                }
-            } else {
-                browserInstancesInUse[instanceIndex] = false;
-            }
+                return new Response(response, {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                });
+            };
 
-            let response = { success: true };
-            if (Array.isArray(body.returnvariables) && body.returnvariables.length > 0) {
-                response.variables = {};
-                for (let v = 0; v < body.returnvariables.length; v++) {
-                    response.variables = variables[body.returnvariables[v]];
-                }
-            }
-            return new Response(response, {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-            });
+            let resp = await runcommand();
+            releaseBrowser(instanceIndex);
+            return resp;
     }
 });
