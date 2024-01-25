@@ -21,6 +21,9 @@ if (typeof nmaxbrowsers !== 'number') {
 if (nmaxbrowsers < 1) {
     throw new Error("we need maxbrowsers to be at least 1");
 }
+if (typeof homedir !== 'string' || homedir.length === 0) {
+    throw new Error("we need a home directory degined with command line argument --homedir");
+}
 
 var browserInstances = new Array(nmaxbrowsers).fill(null);
 var browserFirstPages = new Array(nmaxbrowsers).fill(null);
@@ -282,8 +285,8 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     try {
                         val = await wrappedReceiver[body.calls[i].methodname](...body.calls[i].parameters);
                     } catch (e) {
-                        return new Response("501: we encountered the following error: " + e + " for method " + body.calls[i].methodname + " on receiver " + body.calls[i].methodreceiver, {
-                            status: 501,
+                        return new Response("500: we encountered the following error: " + e + " for method " + body.calls[i].methodname + " on receiver " + body.calls[i].methodreceiver, {
+                            status: 500,
                         });
                     }
                     if (typeof body.calls[i].targetvarname === 'string' && body.calls[i].targetvarname.length > 0) {
