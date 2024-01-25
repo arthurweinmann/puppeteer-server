@@ -1,14 +1,15 @@
 import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
 import { parse } from "https://deno.land/std@0.83.0/flags/mod.ts";
+import { join } from "https://deno.land/std@0.212.0/path/join.ts";
 
 const command_line_args = parse(Deno.args, {
     boolean: ["verbose"],
-    string: ["listenon", "port", "maxbrowsers", "launchargs"],
+    string: ["listenon", "port", "maxbrowsers", "homedir", "launchargs"],
     alias: { "verbose": "v" },
     default: { "verbose": false },
 });
 
-const { listenon, port, maxbrowsers, verbose } = command_line_args;
+const { listenon, port, maxbrowsers, verbose, homedir } = command_line_args;
 const nport = parseInt(port);
 if (typeof nport !== 'number') {
     throw new Error("we need port to represent a valid number");
@@ -222,7 +223,14 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
 
                     for (let p = 0; p < body.calls[i].parameters.length; p++) {
                         if (typeof body.calls[i].parameters[p] === "string") {
-                            if (body.calls[i].parameters[p].startsWith("#")) {
+                            if (body.calls[i].parameters[p].startsWith("file:///")) {
+                                if (containsDotDot(body.calls[i].parameters[p])) {
+                                    return new Response("403: double dots in pathnames are forbidden to enhance security", {
+                                        status: 403,
+                                    });
+                                }
+                                body.calls[i].parameters[p] = "file://" + join(homedir, body.calls[i].parameters[p].slice("file:///".length));
+                            } else if (body.calls[i].parameters[p].startsWith("#")) {
                                 let vname = body.calls[i].parameters[p].slice(1);
 
                                 if (verbose) {
@@ -253,6 +261,10 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                     }
 
                     if (verbose) {
+                        console.log("formated parameters", ...body.calls[i].parameters);
+                    }
+
+                    if (verbose) {
                         console.log(JSON.stringify(receiver));
                         console.log(body.calls[i].methodname);
                     }
@@ -265,10 +277,6 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
                             return target[propKey];
                         }
                     });
-
-                    if (verbose) {
-                        console.log("formated parameters", ...body.calls[i].parameters);
-                    }
 
                     let val;
                     try {
@@ -306,3 +314,18 @@ Deno.serve({ port: nport, hostname: listenon }, async (_req, _info) => {
             return resp;
     }
 });
+
+// Check for .. in the path and respond with an error if it is present
+// otherwise users could access any file on the server
+function containsDotDot(v) {
+    if (!v.includes("..")) {
+        return false;
+    }
+    const fields = v.split(/[/\\]/);
+    for (let i = 0; i < fields.length; i++) {
+        if (fields[i] === "..") {
+            return true;
+        }
+    }
+    return false;
+}
