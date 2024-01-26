@@ -318,9 +318,8 @@ Bun.serve({
                             response.variables = variables[body.returnvariables[v]];
                         }
                     }
-                    return new Response(response, {
-                        status: 200,
-                        headers: { "Content-Type": "application/json" },
+                    return Response.json(response, {
+                        status: 200
                     });
                 };
 
