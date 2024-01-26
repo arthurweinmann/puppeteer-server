@@ -8,13 +8,14 @@ This server is probably not safe to expose directly to users on the web. It shou
 
 # How to use
 
-Build the binary yourself by following [.github/workflows/release.yml](.github/workflows/release.yml) locally or by forking this repository.
-You can also download the binary file already compiled in the release section of this repository.
+Clone this repository or download the zip in the release section. 
 
-Run it, give it the address and port it will listen to, and also the maximum number of headless chrome to start:
-`./puppeteerserver --listenon 127.0.0.1 --port 8085 --maxbrowsers 3`
+Start the server with:
+```sh
+bun run server.js --homedir=/path/to/home/directory --verbose --listenon=10.0.0.2 --port=8085 --maxbrowsers=1
+```
 
-Finally, access your new and shiny constantly ready pool of puppeteers:
+Access your new and shiny constantly ready pool of puppeteers:
 ```bash
 curl -X POST http://127.0.0.1:8085/puppeteer_pseudo_rpc \
      -H "Content-Type: application/json" \
@@ -26,7 +27,7 @@ curl -X POST http://127.0.0.1:8085/puppeteer_pseudo_rpc \
             targetvarname: "the name of the variable into which to save the result of the method call, for example page",
             methodreceiver: "previously created variable name" | "startingpage" | "browser"
             methodname: "for example screenshot",
-            parameters: [{path: "screenshot.png"}, "#varname: start a string with # to replace it by the value a previously defined variable holds"],
+            parameters: [{path: "screenshot.png"}, "#varname: start a string with # to replace it by the value of a previously defined variable"],
         }
     ]
 }
@@ -42,7 +43,3 @@ Response Example:
     },
 }
 ```
-
-# Tip
-
-You may need to run `PUPPETEER_PRODUCT=chrome /root/.deno/bin/deno run -A --unstable https://deno.land/x/puppeteer@16.2.0/install.ts` in order to install the version of chrome supported by the version of Deno puppeteer

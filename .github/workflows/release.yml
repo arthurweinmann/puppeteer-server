@@ -15,14 +15,9 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
 
-      - name: Set up Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v1.39.x
-
-      - name: Deno compile CLI
-        run: |
-          deno compile --unstable --allow-read --allow-run --allow-write --allow-net --allow-env --output=puppeteerserver server.js
+      - name: Tar out folder
+        working-directory: ./
+        run: tar -czvf puppeteer_server.tar.gz --exclude=.github ./*
 
       - name: Get current date
         id: date
@@ -33,7 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete latest-release --yes || true
-          gh release create latest-release puppeteerserver \
+          gh release create latest-release puppeteer_server.tar.gz \
               --repo="$GITHUB_REPOSITORY" \
               --title="${GITHUB_REPOSITORY#*/} latest release" \
               --notes "Generated on ${{ steps.date.outputs.date }}"
