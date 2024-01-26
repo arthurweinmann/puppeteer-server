@@ -12,7 +12,7 @@ Clone this repository or download the zip in the release section.
 
 Start the server with:
 ```sh
-bun run server.js --homedir=/path/to/home/directory --verbose --listenon=10.0.0.2 --port=8085 --maxbrowsers=1
+bun run server.js --homedir=/path/to/home/directory --verbose --listenon=10.0.0.2 --port=8085 --maxbrowsers=1 --launchargs='["--no-sandbox", "--disable-gpu", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]'
 ```
 
 Access your new and shiny constantly ready pool of puppeteers:
