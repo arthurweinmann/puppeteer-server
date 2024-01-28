@@ -1,5 +1,8 @@
 import puppeteer from "puppeteer";
 import path from 'path';
+import os from "os";
+
+import { mkdir } from "node:fs/promises";
 
 var command_line_args = { verbose: true }; // defaults
 for (let i = 2; i < Bun.argv.length; i++) {
@@ -249,6 +252,11 @@ Bun.serve({
                                             status: 403,
                                         });
                                     }
+                                    let localAbsolutePath = path.join(homedir, Bun.fileURLToPath(body.calls[i].parameters[p]));
+                                    if (localAbsolutePath[0] != "/") {
+                                        localAbsolutePath = "/" + localAbsolutePath;
+                                    }
+                                    await mkdir(os.path.dirname(localAbsolutePath), { recursive: true, mode: 0700 });
                                     body.calls[i].parameters[p] = "file://" + path.join(homedir, Bun.fileURLToPath(body.calls[i].parameters[p]));
                                 } else if (body.calls[i].parameters[p].startsWith("#")) {
                                     let vname = body.calls[i].parameters[p].slice(1);
@@ -289,6 +297,8 @@ Bun.serve({
                             console.log(body.calls[i].methodname);
                         }
 
+                        // We need to wrap Puppeteer classes in this Proxy, otherwise it won't let us dynamically access its
+                        // classes methods
                         let wrappedReceiver = new Proxy(receiver, {
                             get(target, propKey, receiverObj) {
                                 if (typeof target[propKey] === 'function') {
@@ -323,7 +333,14 @@ Bun.serve({
                     });
                 };
 
-                let resp = await runcommand();
+                let resp
+                try {
+                    resp = await runcommand();
+                } catch(e) {
+                    return new Response("500: " + e, {
+                        status: 500,
+                    });
+                }
 
                 if (verbose) {
                     console.log("returning response");
