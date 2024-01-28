@@ -257,7 +257,7 @@ Bun.serve({
                                         localAbsolutePath = "/" + localAbsolutePath;
                                     }
                                     await mkdir(os.path.dirname(localAbsolutePath), { recursive: true, mode: 0700 });
-                                    body.calls[i].parameters[p] = "file://" + path.join(homedir, Bun.fileURLToPath(body.calls[i].parameters[p]));
+                                    body.calls[i].parameters[p] = "file://" + localAbsolutePath;
                                 } else if (body.calls[i].parameters[p].startsWith("#")) {
                                     let vname = body.calls[i].parameters[p].slice(1);
 
