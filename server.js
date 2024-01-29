@@ -1,10 +1,10 @@
 import puppeteer from "puppeteer";
 import path from 'path';
-import os from "os";
+import * as os from "os";
 
 import { mkdir } from "node:fs/promises";
 
-var command_line_args = { verbose: true }; // defaults
+var command_line_args = { verbose: true, newheadless: false }; // defaults
 for (let i = 2; i < Bun.argv.length; i++) {
     if (!Bun.argv[i].startsWith("--")) {
         throw new Error("unexpected command line argument " + Bun.argv[i] + " at position " + i);
@@ -21,7 +21,7 @@ if (command_line_args.verbose) {
     console.log("command_line_args", command_line_args);
 }
 
-const { listenon, port, maxbrowsers, verbose, homedir } = command_line_args;
+const { listenon, port, maxbrowsers, verbose, homedir, newheadless } = command_line_args;
 const nport = parseInt(port);
 if (typeof nport !== 'number') {
     throw new Error("we need port to represent a valid number");
@@ -81,12 +81,20 @@ async function initialize() {
             if (closed) {
                 return
             }
+            
+            let pargs = {};
+            if(newheadless) {
+                pargs.headless = 'new';
+            } else {
+                pargs.headless = true;
+            }
             if (command_line_args.launchargs !== undefined) {
                 let tmp = JSON.parse(command_line_args.launchargs);
-                browserInstances[i] = await puppeteer.launch({ args: tmp });
-            } else {
-                browserInstances[i] = await puppeteer.launch();
+                pargs.args = tmp;
             }
+
+            browserInstances[i] = await puppeteer.launch(pargs);
+
             if (closed) {
                 return
             }
@@ -105,7 +113,7 @@ async function initialize() {
 
 async function terminate(exitcode) {
     if (closed) {
-        return
+        process.exit(exitcode);
     }
     closed = true;
     if (verbose) {
