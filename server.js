@@ -104,6 +104,9 @@ async function initialize() {
             browserInstances[instanceindex] = await puppeteer.launch(pargs);
 
             browserInstances[instanceindex].on('disconnected', async () => {
+                if (closed) {
+                    return
+                }
                 disconnectedBrowsers[instanceindex] = true;
                 browserInstancesInUse[instanceindex] = true;
                 if(verbose) {
@@ -120,7 +123,7 @@ async function initialize() {
                     disconnectedBrowsers[instanceindex] = false;
                     releaseBrowser(instanceindex);
                 } catch(e) {
-                    console.log("ERROR> we could not restart disconnected browser instance");
+                    console.log("ERROR> we could not restart disconnected browser instance: " + e);
                 }
             });
 
