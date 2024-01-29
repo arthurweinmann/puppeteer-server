@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import {puppeteer, KnownDevices} from 'puppeteer';
 import path from 'path';
 
 var command_line_args = { verbose: true, newheadless: false }; // defaults
@@ -279,7 +279,13 @@ Bun.serve({
                                             status: 400,
                                         });
                                     }
-                                } else if (body.calls[i].parameters[p].startsWith("function(")) {
+                                }  else if (body.calls[i].parameters[p].startsWith("@KnownDevice(")) {
+                                    let knownDevice = body.calls[i].parameters[p].slice("@KnownDevice(".length, body.calls[i].parameters[p].length - 1);
+                                    if (verbose) {
+                                        console.log("Transforming argument", body.calls[i].parameters[p], "into known device", knownDevice);
+                                    }
+                                    body.calls[i].parameters[p] = knownDevice;
+                                 } else if (body.calls[i].parameters[p].startsWith("function(")) {
                                     body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(9);
                                     let argend = body.calls[i].parameters[p].indexOf(")");
                                     let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
