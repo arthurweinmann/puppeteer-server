@@ -1,8 +1,5 @@
 import puppeteer from "puppeteer";
 import path from 'path';
-import * as os from "os";
-
-import { mkdir } from "node:fs/promises";
 
 var command_line_args = { verbose: true, newheadless: false }; // defaults
 for (let i = 2; i < Bun.argv.length; i++) {
@@ -81,7 +78,7 @@ async function initialize() {
             if (closed) {
                 return
             }
-            
+
             let pargs = {};
             if(newheadless) {
                 pargs.headless = 'new';
@@ -264,7 +261,9 @@ Bun.serve({
                                     if (localAbsolutePath[0] != "/") {
                                         localAbsolutePath = "/" + localAbsolutePath;
                                     }
-                                    await mkdir(os.path.dirname(localAbsolutePath), { recursive: true, mode: 0700 });
+                                    if (verbose) {
+                                        console.log("Transforming argument path", body.calls[i].parameters[p], "into local absolute path", localAbsolutePath);
+                                    }
                                     body.calls[i].parameters[p] = "file://" + localAbsolutePath;
                                 } else if (body.calls[i].parameters[p].startsWith("#")) {
                                     let vname = body.calls[i].parameters[p].slice(1);
