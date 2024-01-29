@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import KnownDevices from "puppeteer";
+import {KnownDevices} from "puppeteer";
 import path from 'path';
 
 var command_line_args = { verbose: true, newheadless: false }; // defaults
