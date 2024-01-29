@@ -49,35 +49,37 @@ if (verbose) {
 }
 
 function releaseBrowser(instanceIndex) {
-    if (verbose) {
-        console.log("releaseBrowser", instanceIndex);
-        console.log("waitingqueue.length", waitingqueue.length);
-    }
-    if (disconnectedBrowsers[instanceIndex]) {
+    setTimeout(()=>{ // give a chance to an eventual browser disconnect event to fire before we release a crashed instance
         if (verbose) {
-            console.log("this browser disconnected, it is now the responsability of the restarting process to release this instance");
+            console.log("releaseBrowser", instanceIndex);
+            console.log("waitingqueue.length", waitingqueue.length);
         }
-        return;
-    }
-
-    if (waitingqueue.length > 0) {
-        let fifoWaiter = undefined;
-        while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
-            fifoWaiter = waitingqueue.shift().resolve;
+        if (disconnectedBrowsers[instanceIndex]) {
+            if (verbose) {
+                console.log("this browser disconnected, it is now the responsability of the restarting process to release this instance");
+            }
+            return;
         }
-
-        if (verbose) {
-            console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
-        }
-
-        if (fifoWaiter !== undefined) {
-            fifoWaiter(instanceIndex);
+    
+        if (waitingqueue.length > 0) {
+            let fifoWaiter = undefined;
+            while (fifoWaiter === undefined && waitingqueue.length > 0) { // gc stale queue ticket where the requester timed out
+                fifoWaiter = waitingqueue.shift().resolve;
+            }
+    
+            if (verbose) {
+                console.log("waitingqueue.length", waitingqueue.length, fifoWaiter !== undefined);
+            }
+    
+            if (fifoWaiter !== undefined) {
+                fifoWaiter(instanceIndex);
+            } else {
+                browserInstancesInUse[instanceIndex] = false;
+            }
         } else {
             browserInstancesInUse[instanceIndex] = false;
         }
-    } else {
-        browserInstancesInUse[instanceIndex] = false;
-    }
+    }, 1);
 }
 
 async function initialize() {
@@ -115,6 +117,7 @@ async function initialize() {
                 try {
                     browserInstances[instanceindex] = await puppeteer.launch(pargs);
                     browserFirstPages[instanceindex] = await browserInstances[instanceindex].newPage();
+                    disconnectedBrowsers[instanceindex] = false;
                     releaseBrowser(instanceindex);
                 } catch(e) {
                     console.log("ERROR> we could not restart disconnected browser instance");
