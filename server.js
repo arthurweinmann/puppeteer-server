@@ -284,7 +284,7 @@ Bun.serve({
                                     if (verbose) {
                                         console.log("Transforming argument", body.calls[i].parameters[p], "into known device", knownDevice);
                                     }
-                                    body.calls[i].parameters[p] = knownDevice;
+                                    body.calls[i].parameters[p] = KnownDevices[knownDevice];
                                  } else if (body.calls[i].parameters[p].startsWith("function(")) {
                                     body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(9);
                                     let argend = body.calls[i].parameters[p].indexOf(")");
