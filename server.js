@@ -2,6 +2,8 @@ import puppeteer from "puppeteer";
 import {KnownDevices} from "puppeteer";
 import path from 'path';
 
+const AsyncFunction = async function () {}.constructor; // AsyncFunction constructor working in the same way as `new Function`
+
 var command_line_args = { verbose: true, newheadless: false }; // defaults
 for (let i = 2; i < Bun.argv.length; i++) {
     if (!Bun.argv[i].startsWith("--")) {
@@ -332,6 +334,18 @@ Bun.serve({
                                     }
 
                                     body.calls[i].parameters[p] = new Function(...args);
+                                } else if (body.calls[i].parameters[p].startsWith("async function(")) {
+                                    body.calls[i].parameters[p] = body.calls[i].parameters[p].slice("async function(".length);
+                                    let argend = body.calls[i].parameters[p].indexOf(")");
+                                    let args = body.calls[i].parameters[p].slice(0, argend).trim().split(",").map(v => v.trim());
+                                    body.calls[i].parameters[p] = body.calls[i].parameters[p].slice(argend + 1).trim();
+                                    args.push(body.calls[i].parameters[p].slice(1, body.calls[i].parameters[p].length - 2).trim()); // remove { }
+
+                                    if (verbose) {
+                                        console.log("creating new async Function with arguments", args);
+                                    }
+
+                                    body.calls[i].parameters[p] = new AsyncFunction(...args);
                                 }
                             }
                         }
