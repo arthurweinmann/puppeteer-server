@@ -38,6 +38,7 @@ if (typeof homedir !== 'string' || homedir.length === 0) {
 var browserInstances = new Array(nmaxbrowsers).fill(null);
 var browserFirstPages = new Array(nmaxbrowsers).fill(null);
 var browserInstancesInUse = new Array(nmaxbrowsers).fill(true);
+var disconnectedBrowsers = new Array(nmaxbrowsers).fill(false);
 var waitingqueue = [];
 var closed = false;
 
@@ -51,6 +52,12 @@ function releaseBrowser(instanceIndex) {
     if (verbose) {
         console.log("releaseBrowser", instanceIndex);
         console.log("waitingqueue.length", waitingqueue.length);
+    }
+    if (disconnectedBrowsers[instanceIndex]) {
+        if (verbose) {
+            console.log("this browser disconnected, it is now the responsability of the restarting process to release this instance");
+        }
+        return;
     }
 
     if (waitingqueue.length > 0) {
@@ -79,6 +86,7 @@ async function initialize() {
             if (closed) {
                 return
             }
+            let instanceindex = i;
 
             let pargs = {};
             if(newheadless) {
@@ -91,17 +99,37 @@ async function initialize() {
                 pargs.args = tmp;
             }
 
-            browserInstances[i] = await puppeteer.launch(pargs);
+            browserInstances[instanceindex] = await puppeteer.launch(pargs);
+
+            browserInstances[instanceindex].on('disconnected', async () => {
+                disconnectedBrowsers[instanceindex] = true;
+                browserInstancesInUse[instanceindex] = true;
+                if(verbose) {
+                    console.log('Browser instance was disconnected, restarting it');
+                }
+                try {
+                    await browserInstances[instanceindex].close();
+                } catch (e) {
+                    // ignore
+                }
+                try {
+                    browserInstances[instanceindex] = await puppeteer.launch(pargs);
+                    browserFirstPages[instanceindex] = await browserInstances[instanceindex].newPage();
+                    releaseBrowser(instanceindex);
+                } catch(e) {
+                    console.log("ERROR> we could not restart disconnected browser instance");
+                }
+            });
 
             if (closed) {
                 return
             }
-            browserFirstPages[i] = await browserInstances[i].newPage();
+            browserFirstPages[instanceindex] = await browserInstances[instanceindex].newPage();
             if (closed) {
                 return
             }
 
-            releaseBrowser(i);
+            releaseBrowser(instanceindex);
         }
     } catch (e) {
         console.error(e);
